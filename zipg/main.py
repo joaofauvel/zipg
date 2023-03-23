@@ -12,15 +12,15 @@ class FileGroup:
         self.files = files
 
     def zip(self, output_dir: Path):
+        os.makedirs(output_dir, exist_ok=True)
         with zipfile.ZipFile(output_dir / f"{self.name}.zip", "w") as zip_file:
             for file in self.files:
                 zip_file.write(file, file.name)
 
 class FileGrouper:
-    def __init__(self, input_dir: Path, filters: list[str], directory: bool):
+    def __init__(self, input_dir: Path, filters: list[str]):
         self.input_dir = input_dir
         self.filters = filters
-        self.directory = directory
 
     def group_files(self) -> list[FileGroup]:
         files = {}
@@ -28,19 +28,13 @@ class FileGrouper:
             if filter == "*":
                 for file in self.input_dir.glob("*"):
                     if file.is_file():
-                        if self.directory:
-                            key = file.name
-                        else:
-                            key = file.stem
+                        key = file.stem
                         if key not in files:
                             files[key] = []
                         files[key].append(file)
             else:
                 for file in self.input_dir.glob(f"*{filter}"):
-                    if self.directory:
-                        key = file.name
-                    else:
-                        key = file.stem
+                    key = file.stem
                     if key not in files:
                         files[key] = []
                     files[key].append(file)
@@ -63,19 +57,18 @@ def run(
     input_dir: str = typer.Argument(".", help="Directory to look for files"),
     output_dir: str = typer.Argument(".", help="Path for the output archives"),
     filter: list[str] = typer.Option(["*"], "-f", "--filter", help="Filter file types. Should start with . (i.e.: .shp)"),
-    directory: bool = typer.Option(False, "-d", "--directory", help="Include directories in the groups"),
 ):
     """
     Zips groups of files inside a given directory, creating a different zip archive for every group.
     """
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
-    filters: list = filter.split(",")
+    filters = filter
     for i, f in enumerate(filters):
-        if f[0] != '.':
+        if f[0] != '.' and f != '*':
             filters.pop(i)
             filters.extend(aliases[f])
-    file_grouper = FileGrouper(input_dir, filters, directory)
+    file_grouper = FileGrouper(input_dir, filters)
     groups = file_grouper.group_files()
     zipper = Zipper(output_dir)
     zipper.zip_groups(groups)
